@@ -17,8 +17,10 @@ import {
   Copy,
   Check,
   X,
+  MessageSquare,
 } from "lucide-react"
 import { BlockEditor } from "@/components/editor/BlockEditor"
+import { FakeCursors } from "@/components/collaboration/FakeCursors"
 import type { Page } from "@/types"
 
 const EMOJIS = [
@@ -118,7 +120,7 @@ function ShareModal({ page, onClose }: { page: Page; onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-label="Share page">
       <div className="w-full max-w-md rounded-xl border bg-popover shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-lg font-semibold">Share</h2>
@@ -190,6 +192,8 @@ export function PageShell({ pageId }: { pageId: string }) {
   const pages = useWorkspaceStore((s) => s.pages)
   const updatePage = useWorkspaceStore((s) => s.updatePage)
   const toggleShareModal = useWorkspaceStore((s) => s.toggleShareModal)
+  const toggleCommentsPanel = useWorkspaceStore((s) => s.toggleCommentsPanel)
+  const comments = useWorkspaceStore((s) => s.comments)
   const shareModalOpen = useWorkspaceStore((s) => s.shareModalOpen)
   const shareModalPageId = useWorkspaceStore((s) => s.shareModalPageId)
   const [title, setTitle] = useState("")
@@ -197,6 +201,9 @@ export function PageShell({ pageId }: { pageId: string }) {
 
   const allPages = pages.flatMap((p) => [p, ...(p.children || [])])
   const page = allPages.find((p) => p.id === pageId)
+
+  // Get unresolved comments for this page
+  const pageComments = comments.filter((c) => c.pageId === pageId && !c.resolved)
 
   // Sync title when page changes
   const titleRef = useRef(page?.title || "")
@@ -234,6 +241,9 @@ export function PageShell({ pageId }: { pageId: string }) {
 
   return (
     <div className="max-w-4xl mx-auto">
+      {/* Fake collaboration cursors */}
+      <FakeCursors />
+
       {/* Breadcrumbs */}
       <Breadcrumbs page={page} />
 
@@ -244,8 +254,12 @@ export function PageShell({ pageId }: { pageId: string }) {
             className="absolute inset-0"
             style={{ background: page.cover }}
           />
+          <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none">
+            <span className="text-6xl font-bold tracking-widest text-white mix-blend-overlay">rebase.studio</span>
+          </div>
           <button
             onClick={() => updatePage(page.id, { cover: null })}
+            title="Remove cover"
             className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 text-white rounded-md px-2 py-1 text-xs"
           >
             Remove cover
@@ -255,6 +269,7 @@ export function PageShell({ pageId }: { pageId: string }) {
         <div className="group relative h-20 -mx-6 mb-6 flex items-center justify-center">
           <button
             onClick={() => setShowCoverInput(!showCoverInput)}
+            title="Add cover image"
             className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground bg-accent/50 rounded-md px-3 py-1.5"
           >
             <ImageIcon className="h-4 w-4" />
@@ -310,11 +325,32 @@ export function PageShell({ pageId }: { pageId: string }) {
           size="sm"
           className="gap-1.5 text-xs h-7"
           onClick={() => toggleShareModal(page.id)}
+          title="Share page"
         >
           <Share2 className="h-3.5 w-3.5" />
           Share
         </Button>
       </div>
+
+      {/* Comment highlights banner */}
+      {pageComments.length > 0 && (
+        <div className="mb-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 flex items-center gap-3">
+          <MessageSquare className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm text-amber-900 dark:text-amber-100">
+              {pageComments.length} unresolved comment{pageComments.length !== 1 ? 's' : ''} on this page
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100"
+            onClick={() => toggleCommentsPanel()}
+          >
+            View
+          </Button>
+        </div>
+      )}
 
       <Separator className="mb-6" />
 

@@ -20,6 +20,7 @@ import {
   ChevronRight,
   ChevronDown,
   Trash2,
+  MessageSquare,
 } from "lucide-react"
 import type { Block, BlockType } from "@/types"
 
@@ -150,7 +151,9 @@ function EditableBlock({
   onDragOver,
   onDrop,
   isDragging,
+  pageId,
 }: {
+  pageId: string
   block: Block
   index: number
   isActive: boolean
@@ -167,8 +170,11 @@ function EditableBlock({
   const [showSlash, setShowSlash] = useState(false)
   const [slashPosition, setSlashPosition] = useState({ top: 0, left: 0 })
   const [isEmpty, setIsEmpty] = useState(!block.content)
+  const [showCommentButton, setShowCommentButton] = useState(false)
+  const [commentButtonPos, setCommentButtonPos] = useState({ top: 0, left: 0 })
   const contentRef = useRef<HTMLDivElement>(null)
   const isMounted = useRef(false)
+
 
   useEffect(() => {
     isMounted.current = true
@@ -183,6 +189,22 @@ function EditableBlock({
       }
     }
   }, [block.content, block.id])
+
+  const handleMouseUp = () => {
+    const selection = window.getSelection()
+    const text = selection?.toString().trim()
+    if (text && text.length > 0) {
+      const range = selection?.getRangeAt(0)
+      const rect = range?.getBoundingClientRect()
+      if (rect) {
+        setCommentButtonPos({ top: rect.top + window.scrollY - 40, left: rect.left + rect.width / 2 - 40 })
+        setShowCommentButton(true)
+        setSelectedText(text, block.id)
+      }
+    } else {
+      setShowCommentButton(false)
+    }
+  }
 
   const handleInput = () => {
     const text = contentRef.current?.textContent || ""
@@ -256,7 +278,8 @@ function EditableBlock({
 
   const baseClasses = cn(
     "relative w-full outline-none transition-colors rounded-sm px-1 py-0.5",
-    isActive && "bg-accent/30"
+    isActive && "bg-accent/30",
+    block.commentIds && block.commentIds.length > 0 && "border-l-2 border-amber-400 pl-2"
   )
 
   const renderBlockContent = () => {
@@ -267,6 +290,7 @@ function EditableBlock({
       onInput: handleInput,
       onKeyDown: handleKeyDown,
       onFocus: onFocus,
+      onMouseUp: handleMouseUp,
       className: baseClasses,
     }
 
@@ -389,6 +413,38 @@ function EditableBlock({
 
       {renderBlockContent()}
 
+      {showCommentButton && (
+        <button
+          onClick={() => {
+            const selection = window.getSelection()
+            const text = selection?.toString().trim()
+            if (text) {
+              addComment({
+                id: generateId(),
+                pageId: pageId,
+                blockId: block.id,
+                text,
+                userId: "user-you",
+                userName: "You",
+                userAvatar: "",
+                userColor: "#2563eb",
+                createdAt: new Date().toISOString(),
+                resolved: false,
+                replies: [],
+              })
+            }
+            toggleCommentsPanel()
+            setShowCommentButton(false)
+            window.getSelection()?.removeAllRanges()
+          }}
+          className="fixed z-50 bg-primary text-primary-foreground text-xs px-3 py-1.5 rounded-full shadow-lg hover:bg-primary/90 transition-colors flex items-center gap-1"
+          style={{ top: commentButtonPos.top, left: commentButtonPos.left }}
+        >
+          <MessageSquare className="h-3 w-3" />
+          Add comment
+        </button>
+      )}
+
       {showSlash && (
         <SlashCommandMenu
           position={slashPosition}
@@ -405,6 +461,10 @@ function EditableBlock({
 export function BlockEditor({ pageId }: { pageId: string }) {
   const pages = useWorkspaceStore((s) => s.pages)
   const updatePageContent = useWorkspaceStore((s) => s.updatePageContent)
+  const addComment = useWorkspaceStore((s) => s.addComment)
+  const toggleCommentsPanel = useWorkspaceStore((s) => s.toggleCommentsPanel)
+  const setSelectedText = useWorkspaceStore((s) => s.setSelectedText)
+  const comments = useWorkspaceStore((s) => s.comments)
   const page = pages.find((p) => p.id === pageId)
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
@@ -531,6 +591,7 @@ export function BlockEditor({ pageId }: { pageId: string }) {
             onDragOver={(e) => handleDragOver(e, index)}
             onDrop={(e) => handleDrop(e, index)}
             isDragging={draggingId === block.id}
+            pageId={pageId}
           />
         </div>
       ))}

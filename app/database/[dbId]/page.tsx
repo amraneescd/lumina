@@ -3,7 +3,27 @@
 import { useParams } from "next/navigation"
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore"
 import { AppLayout } from "@/components/layout/AppLayout"
-import { DatabaseView } from "@/components/database/DatabaseView"
+import dynamic from "next/dynamic"
+
+const DatabaseView = dynamic(() => import("@/components/database/DatabaseView").then((mod) => mod.DatabaseView), {
+  loading: () => (
+    <div className="space-y-4 animate-pulse">
+      <div className="h-8 w-48 bg-muted rounded" />
+      <div className="flex gap-2">
+        <div className="h-9 w-24 bg-muted rounded" />
+        <div className="h-9 w-24 bg-muted rounded" />
+        <div className="h-9 w-24 bg-muted rounded" />
+      </div>
+      <div className="space-y-2">
+        <div className="h-10 w-full bg-muted rounded" />
+        <div className="h-10 w-full bg-muted rounded" />
+        <div className="h-10 w-full bg-muted rounded" />
+        <div className="h-10 w-full bg-muted rounded" />
+      </div>
+    </div>
+  ),
+  ssr: false,
+})
 import { Breadcrumbs } from "@/components/editor/PageShell"
 import { cn, formatDate } from "@/lib/utils"
 import { ImageIcon } from "lucide-react"

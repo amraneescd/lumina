@@ -33,6 +33,7 @@ export interface Page {
   template?: string
   children?: Page[]
   content?: Block[]
+  commentCount?: number
 }
 
 export interface Block {
@@ -42,6 +43,7 @@ export interface Block {
   checked?: boolean
   children?: Block[]
   collapsed?: boolean
+  commentIds?: string[]
 }
 
 export type BlockType =
@@ -129,22 +131,25 @@ export interface DatabaseItem {
 
 export interface Notification {
   id: string
-  type: "mention" | "comment" | "edit" | "share" | "reminder"
+  type: "mention" | "comment" | "edit" | "share" | "reminder" | "assignment"
   title: string
   message: string
   pageId: string
   read: boolean
   createdAt: string
   actorId: string
+  actorName: string
 }
 
 export interface Activity {
   id: string
-  type: "edit" | "comment" | "create" | "delete"
+  type: "edit" | "comment" | "create" | "delete" | "assign" | "move"
   pageId: string
   pageTitle: string
   userId: string
   userName: string
+  userAvatar: string
+  userColor: string
   action: string
   createdAt: string
 }
@@ -165,7 +170,27 @@ export interface Comment {
   userId: string
   userName: string
   userAvatar: string
+  userColor: string
   createdAt: string
   resolved: boolean
-  replies: Comment[]
+  replies: Reply[]
+}
+
+export interface Reply {
+  id: string
+  text: string
+  userId: string
+  userName: string
+  userAvatar: string
+  userColor: string
+  createdAt: string
+}
+
+export interface Toast {
+  id: string
+  type: "success" | "error" | "info"
+  title: string
+  message?: string
+  duration?: number
+  undoAction?: () => void
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore"
 import { useThemeStore } from "@/stores/useThemeStore"
 import { cn, formatDate } from "@/lib/utils"
@@ -17,6 +18,14 @@ import {
   Clock,
   Command,
   X,
+  LayoutDashboard,
+  Plus,
+  FolderOpen,
+  CheckSquare,
+  HelpCircle,
+  Bell,
+  Users,
+  Palette,
 } from "lucide-react"
 import type { Page } from "@/types"
 
@@ -33,22 +42,49 @@ interface CommandItem {
 export function CommandPalette() {
   const [query, setQuery] = useState("")
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const router = useRouter()
   const setCommandPaletteOpen = useWorkspaceStore((s) => s.setCommandPaletteOpen)
   const pages = useWorkspaceStore((s) => s.pages)
-  const setCurrentPageId = useWorkspaceStore((s) => s.setCurrentPageId)
+  const databases = useWorkspaceStore((s) => s.databases)
   const toggleSettings = useWorkspaceStore((s) => s.toggleSettings)
+  const toggleNotifications = useWorkspaceStore((s) => s.toggleNotifications)
+  const toggleHelpModal = useWorkspaceStore((s) => s.toggleHelpModal)
   const theme = useThemeStore((s) => s.theme)
   const setTheme = useThemeStore((s) => s.setTheme)
+  const setCurrentPageId = useWorkspaceStore((s) => s.setCurrentPageId)
+  const addPage = useWorkspaceStore((s) => s.addPage)
+  const addToast = useWorkspaceStore((s) => s.addToast)
 
   const allCommands: CommandItem[] = useMemo(() => {
     const items: CommandItem[] = []
 
-    // Pages
+    // Flatten pages
     const flattenPages = (pageList: Page[]): Page[] => {
       return pageList.flatMap((p) => [p, ...(p.children ? flattenPages(p.children) : [])])
     }
     const allPages = flattenPages(pages)
 
+    // Recent pages (last 5 edited)
+    const recentPages = [...allPages]
+      .sort((a, b) => new Date(b.lastEditedAt).getTime() - new Date(a.lastEditedAt).getTime())
+      .slice(0, 5)
+
+    items.push(
+      ...recentPages.map((page) => ({
+        id: `recent-${page.id}`,
+        title: page.title,
+        subtitle: `Edited ${formatDate(page.lastEditedAt)}`,
+        icon: <span className="text-base">{page.icon}</span>,
+        action: () => {
+          setCurrentPageId(page.id)
+          router.push(page.type === "database" ? `/database/${page.id}` : `/${page.id}`)
+          setCommandPaletteOpen(false)
+        },
+        category: "Recent",
+      }))
+    )
+
+    // All pages
     items.push(
       ...allPages.map((page) => ({
         id: `page-${page.id}`,
@@ -57,9 +93,26 @@ export function CommandPalette() {
         icon: <span className="text-base">{page.icon}</span>,
         action: () => {
           setCurrentPageId(page.id)
+          router.push(page.type === "database" ? `/database/${page.id}` : `/${page.id}`)
           setCommandPaletteOpen(false)
         },
         category: "Pages",
+      }))
+    )
+
+    // Databases
+    items.push(
+      ...databases.map((db) => ({
+        id: `db-${db.id}`,
+        title: db.title,
+        subtitle: `${db.items.length} items`,
+        icon: <Database className="h-4 w-4" />,
+        action: () => {
+          setCurrentPageId(db.id)
+          router.push(`/database/${db.id}`)
+          setCommandPaletteOpen(false)
+        },
+        category: "Databases",
       }))
     )
 
@@ -69,28 +122,65 @@ export function CommandPalette() {
         id: "action-home",
         title: "Go to Dashboard",
         subtitle: "Navigate to home",
-        icon: <Home className="h-4 w-4" />,
+        icon: <LayoutDashboard className="h-4 w-4" />,
         shortcut: "G D",
         action: () => {
           setCurrentPageId(null)
+          router.push("/")
           setCommandPaletteOpen(false)
         },
         category: "Actions",
       },
       {
-        id: "action-favorites",
-        title: "Show Favorites",
-        subtitle: "View starred pages",
-        icon: <Star className="h-4 w-4" />,
-        action: () => setCommandPaletteOpen(false),
+        id: "action-new-page",
+        title: "New Page",
+        subtitle: "Create a blank page",
+        icon: <Plus className="h-4 w-4" />,
+        action: () => {
+          const newPage = {
+            id: `page-${Date.now()}`,
+            title: "Untitled",
+            icon: "📝",
+            cover: null,
+            parentId: null,
+            workspaceId: "ws-lumina",
+            isFavorite: false,
+            isPrivate: false,
+            lastEditedAt: new Date().toISOString(),
+            lastEditedBy: "You",
+            createdAt: new Date().toISOString(),
+            type: "page" as const,
+            content: [{ id: generateId(), type: "paragraph" as const, content: "", commentIds: [] }],
+          }
+          addPage(newPage)
+          router.push(`/${newPage.id}`)
+          setCommandPaletteOpen(false)
+          addToast({ type: "success", title: "New page created" })
+        },
         category: "Actions",
       },
       {
-        id: "action-recent",
-        title: "Recent Items",
-        subtitle: "View recently edited",
-        icon: <Clock className="h-4 w-4" />,
-        action: () => setCommandPaletteOpen(false),
+        id: "action-projects",
+        title: "Go to Projects",
+        subtitle: "Open Projects database",
+        icon: <FolderOpen className="h-4 w-4" />,
+        action: () => {
+          setCurrentPageId("db-projects")
+          router.push("/database/db-projects")
+          setCommandPaletteOpen(false)
+        },
+        category: "Actions",
+      },
+      {
+        id: "action-tasks",
+        title: "Go to Tasks",
+        subtitle: "Open Tasks database",
+        icon: <CheckSquare className="h-4 w-4" />,
+        action: () => {
+          setCurrentPageId("db-tasks")
+          router.push("/database/db-tasks")
+          setCommandPaletteOpen(false)
+        },
         category: "Actions",
       },
       {
@@ -104,19 +194,44 @@ export function CommandPalette() {
           setCommandPaletteOpen(false)
         },
         category: "Actions",
+      },
+      {
+        id: "action-notifications",
+        title: "Open Notifications",
+        subtitle: "View recent notifications",
+        icon: <Bell className="h-4 w-4" />,
+        action: () => {
+          toggleNotifications()
+          setCommandPaletteOpen(false)
+        },
+        category: "Actions",
+      },
+      {
+        id: "action-help",
+        title: "Keyboard Shortcuts",
+        subtitle: "View all shortcuts",
+        icon: <HelpCircle className="h-4 w-4" />,
+        shortcut: "⌘ /",
+        action: () => {
+          toggleHelpModal()
+          setCommandPaletteOpen(false)
+        },
+        category: "Actions",
       }
     )
 
-    // Theme
+    // Theme preferences
     items.push(
       {
         id: "theme-light",
         title: "Light Mode",
         subtitle: "Switch to light theme",
         icon: <Sun className="h-4 w-4" />,
+        shortcut: "⌘ Shift L",
         action: () => {
           setTheme("light")
           setCommandPaletteOpen(false)
+          addToast({ type: "success", title: "Switched to light mode" })
         },
         category: "Preferences",
       },
@@ -128,6 +243,7 @@ export function CommandPalette() {
         action: () => {
           setTheme("dark")
           setCommandPaletteOpen(false)
+          addToast({ type: "success", title: "Switched to dark mode" })
         },
         category: "Preferences",
       },
@@ -139,13 +255,14 @@ export function CommandPalette() {
         action: () => {
           setTheme("system")
           setCommandPaletteOpen(false)
+          addToast({ type: "success", title: "Switched to system theme" })
         },
         category: "Preferences",
       }
     )
 
     return items
-  }, [pages, setCurrentPageId, setCommandPaletteOpen, toggleSettings, setTheme])
+  }, [pages, databases, setCurrentPageId, setCommandPaletteOpen, toggleSettings, toggleNotifications, toggleHelpModal, setTheme, router, addPage, addToast])
 
   const filtered = useMemo(() => {
     if (!query.trim()) return allCommands
@@ -193,8 +310,8 @@ export function CommandPalette() {
   }, [flatItems, selectedIndex, setCommandPaletteOpen])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm pt-[20vh]">
-      <div className="w-full max-w-2xl rounded-xl border bg-popover shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 backdrop-blur-sm pt-[15vh]" role="dialog" aria-modal="true" aria-label="Command palette">
+      <div className="w-full max-w-[640px] rounded-xl border bg-popover shadow-2xl overflow-hidden">
         {/* Search input */}
         <div className="flex items-center border-b px-4 py-3">
           <Search className="h-5 w-5 text-muted-foreground mr-3" />
@@ -203,7 +320,7 @@ export function CommandPalette() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search pages, databases, actions..."
-            className="flex-1 bg-transparent text-lg outline-none placeholder:text-muted-foreground"
+            className="flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
             autoFocus
           />
           <button
@@ -219,12 +336,13 @@ export function CommandPalette() {
           {flatItems.length === 0 ? (
             <div className="flex flex-col items-center py-8 text-muted-foreground">
               <Search className="h-8 w-8 mb-2 opacity-50" />
-              <p>No results found</p>
+              <p className="text-sm">No results found</p>
+              <p className="text-xs mt-1">Try a different search term</p>
             </div>
           ) : (
             Object.entries(grouped).map(([category, items]) => (
               <div key={category}>
-                <h3 className="px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <h3 className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {category}
                 </h3>
                 {items.map((item, idx) => {
@@ -242,7 +360,7 @@ export function CommandPalette() {
                       )}
                       onMouseEnter={() => setSelectedIndex(globalIdx)}
                     >
-                      <span className="flex h-8 w-8 items-center justify-center rounded-md bg-muted">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-md bg-muted shrink-0">
                         {item.icon}
                       </span>
                       <div className="flex-1 min-w-0">
@@ -252,7 +370,7 @@ export function CommandPalette() {
                         )}
                       </div>
                       {item.shortcut && (
-                        <kbd className="rounded border bg-muted px-1.5 py-0.5 text-xs">
+                        <kbd className="rounded border bg-muted px-1.5 py-0.5 text-[10px] shrink-0">
                           {item.shortcut}
                         </kbd>
                       )}
@@ -265,7 +383,7 @@ export function CommandPalette() {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t px-4 py-2 text-xs text-muted-foreground">
+        <div className="flex items-center justify-between border-t px-4 py-2 text-[11px] text-muted-foreground">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
               <kbd className="rounded border px-1">↑</kbd>
