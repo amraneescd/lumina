@@ -166,6 +166,15 @@ function ProgressCellEditor({ value, onSave, onCancel }: { value: number | null;
           </button>
         ))}
       </div>
+      {items.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-12 text-center col-span-full">
+          <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
+            <GalleryThumbnails className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <p className="text-sm font-medium text-muted-foreground">No items found</p>
+          <p className="text-xs text-muted-foreground mt-1">Try adjusting your filters or add a new item.</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -476,6 +485,15 @@ function CalendarView({ database, view, items, teamMembers, onUpdateItem, onDele
           )
         })}
       </div>
+      {items.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
+            <Calendar className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <p className="text-sm font-medium text-muted-foreground">No items found</p>
+          <p className="text-xs text-muted-foreground mt-1">Try adjusting your filters or add a new item.</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -568,13 +586,47 @@ export function DatabaseView({ databaseId }: { databaseId: string }) {
   const teamMembers = useWorkspaceStore((s) => s.teamMembers)
   const activeViewId = useWorkspaceStore((s) => s.activeViewId)
   const setActiveView = useWorkspaceStore((s) => s.setActiveView)
+  const updateDatabaseItem = useWorkspaceStore((s) => s.updateDatabaseItem)
+  const deleteDatabaseItem = useWorkspaceStore((s) => s.deleteDatabaseItem)
+  const addDatabaseItem = useWorkspaceStore((s) => s.addDatabaseItem)
+  const addToast = useWorkspaceStore((s) => s.addToast)
   const [searchQuery, setSearchQuery] = useState("")
   const [localFilters, setLocalFilters] = useState<Filter[]>([])
   const [localSorts, setLocalSorts] = useState<Sort[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 500)
+    return () => clearTimeout(timer)
+  }, [databaseId])
 
   const database = databases.find((d) => d.id === databaseId)
   const currentViewId = activeViewId[databaseId] || database?.views[0]?.id
   const currentView = database?.views.find((v) => v.id === currentViewId)
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="h-8 w-24 shimmer rounded-md" />
+          <div className="h-8 w-24 shimmer rounded-md" />
+          <div className="h-8 w-24 shimmer rounded-md" />
+        </div>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="h-9 w-64 shimmer rounded-md" />
+          <div className="h-9 w-24 shimmer rounded-md" />
+          <div className="h-9 w-20 shimmer rounded-md" />
+        </div>
+        <div className="space-y-2">
+          <div className="h-10 w-full shimmer rounded-md" />
+          <div className="h-10 w-full shimmer rounded-md" />
+          <div className="h-10 w-full shimmer rounded-md" />
+          <div className="h-10 w-full shimmer rounded-md" />
+          <div className="h-10 w-full shimmer rounded-md" />
+        </div>
+      </div>
+    )
+  }
 
   if (!database || !currentView) return <div className="text-muted-foreground">Database not found</div>
 
@@ -621,9 +673,33 @@ export function DatabaseView({ databaseId }: { databaseId: string }) {
     return items
   }, [database.items, searchQuery, allFilters, allSorts])
 
-  const handleUpdateItem = useCallback((itemId: string, columnId: string, value: unknown) => { console.log("Update", itemId, columnId, value) }, [])
-  const handleDeleteItem = useCallback((itemId: string) => { console.log("Delete", itemId) }, [])
-  const handleAddItem = useCallback((groupValue?: string) => { console.log("Add", groupValue) }, [])
+  const handleUpdateItem = useCallback((itemId: string, columnId: string, value: unknown) => {
+    updateDatabaseItem(databaseId, itemId, columnId, value)
+    addToast({ type: "success", title: "Value updated" })
+  }, [databaseId, updateDatabaseItem, addToast])
+
+  const handleDeleteItem = useCallback((itemId: string) => {
+    deleteDatabaseItem(databaseId, itemId)
+    addToast({ type: "info", title: "Item deleted", message: "The item has been removed from the database.", undoAction: () => {
+      // In a real app, we'd restore the item here
+      addToast({ type: "success", title: "Undo not implemented in demo" })
+    }})
+  }, [databaseId, deleteDatabaseItem, addToast])
+
+  const handleAddItem = useCallback((groupValue?: string) => {
+    const newItem = {
+      id: generateId(),
+      databaseId,
+      values: {
+        "col-title": "New item",
+        ...(groupValue ? { [database.columns.find((c) => c.type === "status")?.id || "col-status"]: groupValue } : {}),
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    addDatabaseItem(databaseId, newItem)
+    addToast({ type: "success", title: "New item added" })
+  }, [databaseId, database, addDatabaseItem, addToast])
   const handleAddFilter = useCallback((filter: Filter) => { setLocalFilters((prev) => [...prev, filter]) }, [])
   const handleRemoveFilter = useCallback((filterId: string) => { setLocalFilters((prev) => prev.filter((f) => f.id !== filterId)) }, [])
 
@@ -638,9 +714,9 @@ export function DatabaseView({ databaseId }: { databaseId: string }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 overflow-x-auto">
           {database.views.map((view) => (
-            <button key={view.id} onClick={() => setActiveView(database.id, view.id)} className={cn("flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors", currentViewId === view.id ? "bg-accent text-accent-foreground font-medium" : "hover:bg-accent/50 text-muted-foreground")}>
+            <button key={view.id} onClick={() => setActiveView(database.id, view.id)} className={cn("flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors whitespace-nowrap", currentViewId === view.id ? "bg-accent text-accent-foreground font-medium" : "hover:bg-accent/50 text-muted-foreground")}>
               {viewIcons[view.type]}{view.name}
             </button>
           ))}
@@ -651,11 +727,11 @@ export function DatabaseView({ databaseId }: { databaseId: string }) {
             <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full rounded-md border bg-background pl-9 pr-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-primary" />
           </div>
           <FilterBar database={database} filters={allFilters} onAddFilter={handleAddFilter} onRemoveFilter={handleRemoveFilter} />
-          <Button size="sm" className="gap-1.5" onClick={() => handleAddItem()}><Plus className="h-3.5 w-3.5" />New</Button>
+          <Button size="sm" className="gap-1.5" onClick={() => handleAddItem()} title="Add new item"><Plus className="h-3.5 w-3.5" />New</Button>
         </div>
       </div>
       <div className="mt-4">
-        {currentView.type === "table" && <TableView database={database} view={currentView} items={filteredItems} teamMembers={teamMembers} onUpdateItem={handleUpdateItem} onDeleteItem={handleDeleteItem} onAddItem={handleAddItem} />}
+        {currentView.type === "table" && <div className="overflow-x-auto -mx-2 px-2"><TableView database={database} view={currentView} items={filteredItems} teamMembers={teamMembers} onUpdateItem={handleUpdateItem} onDeleteItem={handleDeleteItem} onAddItem={handleAddItem} />}
         {currentView.type === "board" && <BoardView database={database} view={currentView} items={filteredItems} teamMembers={teamMembers} onUpdateItem={handleUpdateItem} onDeleteItem={handleDeleteItem} onAddItem={handleAddItem} />}
         {currentView.type === "list" && <ListView database={database} view={currentView} items={filteredItems} teamMembers={teamMembers} onUpdateItem={handleUpdateItem} onDeleteItem={handleDeleteItem} onAddItem={handleAddItem} />}
         {currentView.type === "calendar" && <CalendarView database={database} view={currentView} items={filteredItems} teamMembers={teamMembers} onUpdateItem={handleUpdateItem} onDeleteItem={handleDeleteItem} onAddItem={handleAddItem} />}

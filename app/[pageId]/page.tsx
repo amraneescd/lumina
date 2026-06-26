@@ -3,7 +3,23 @@
 import { useParams } from "next/navigation"
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore"
 import { AppLayout } from "@/components/layout/AppLayout"
-import { PageShell } from "@/components/editor/PageShell"
+import dynamic from "next/dynamic"
+
+const PageShell = dynamic(() => import("@/components/editor/PageShell").then((mod) => mod.PageShell), {
+  loading: () => (
+    <div className="max-w-4xl mx-auto space-y-4 animate-pulse">
+      <div className="h-8 w-64 bg-muted rounded" />
+      <div className="h-4 w-48 bg-muted rounded" />
+      <div className="h-48 bg-muted rounded-xl" />
+      <div className="space-y-2">
+        <div className="h-4 w-full bg-muted rounded" />
+        <div className="h-4 w-3/4 bg-muted rounded" />
+        <div className="h-4 w-1/2 bg-muted rounded" />
+      </div>
+    </div>
+  ),
+  ssr: false,
+})
 
 export default function PageViewer() {
   const params = useParams()
